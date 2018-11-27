@@ -1,0 +1,31 @@
+FROM ubuntu:16.04
+
+RUN apt-get update && apt-get -y install curl gnupg2
+RUN curl http://repo.ros2.org/repos.key | apt-key add -
+RUN sh -c 'echo "deb [arch=amd64,arm64] http://repo.ros2.org/ubuntu/main xenial main" > /etc/apt/sources.list.d/ros2-latest.list'
+
+COPY packages/ubuntu.packages /setup/ubuntu.packages
+COPY packages/pip.packages /setup/pip.packages
+
+RUN apt-get update && \
+    apt-get install -y $(cat /setup/ubuntu.packages)
+
+RUN python3 -m pip install -U $(cat /setup/pip.packages)
+
+RUN mkdir -p /ros2_ws/src && \
+    cd /ros2_ws && \
+    wget https://raw.githubusercontent.com/ros2/ros2/release-latest/ros2.repos && \
+    vcs import src < ros2.repos
+
+WORKDIR /ros2_ws
+
+RUN rosdep init
+RUN rosdep update
+RUN rosdep install \
+        --from-paths src \
+        --ignore-src \
+        --rosdistro bouncy \
+        -y \
+        --skip-keys "console_bridge fastcdr fastrtps libopensplice67 rti-connext-dds-5.3.1 urdfdom_headers"
+
+RUN colcon build --symlink-install
